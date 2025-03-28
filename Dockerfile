@@ -8,6 +8,6 @@ COPY src /app/src
 RUN chmod +x ./gradlew
 RUN ./gradlew bootJar --no-daemon
 
-EXPOSE 8080
+EXPOSE 9090
 
 CMD ["java", "-jar", "build/libs/master-0.0.1-SNAPSHOT.jar"]
