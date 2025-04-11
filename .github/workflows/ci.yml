@@ -45,24 +45,22 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Get the commit hash
-        id: commit_hash
-        run: |
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          echo "COMMIT_HASH=${COMMIT_HASH}" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Extract version info
+        id: version
         run: |
-          docker build -t l1zail/master-node:${{ env.COMMIT_HASH }} -f Dockerfile .
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "TAG=$SHORT_SHA" >> $GITHUB_ENV
+          echo "tag=$SHORT_SHA" >> $GITHUB_OUTPUT
 
-      - name: Push Docker image
-        run: |
-          docker push l1zail/master-node:${{ env.COMMIT_HASH }}
-
-      - name: Tag Docker image as latest
-        run: |
-          docker tag l1zail/master-node:${{ env.COMMIT_HASH }} l1zail/master-node:latest
-
-      - name: Push Docker image as latest
-        run: |
-          docker push l1zail/master-node:latest     
+      - name: Build and Push Multi-Platform Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            l1zail/master-node:${{ env.TAG }}
+            l1zail/master-node:latest

@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  sharding-storage:
+    image: l1zail/sharding-storage:latest
+    ports:
+      - "8080"
+    networks:
+      - sharding-network
+    restart: unless-stopped
+    depends_on:
+      master-node:
+        condition: service_healthy
+
+  master-node:
+    image: l1zail/master-node:latest
+    container_name: master-node
+    ports:
+      - "9090:8080"
+    restart: unless-stopped
+    networks:
+      - sharding-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/8080 || exit 1'"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  sharding-client:
+    image: l1zail/sharding-client:latest
+    container_name: sharding-client
+    ports:
+      - "7070:8080"
+    command: ["master-node:8080"]
+    restart: on-failure
+    stdin_open: true
+    tty: true
+    depends_on:
+      master-node:
+        condition: service_healthy
+    networks:
+      - sharding-network
+
+networks:
+  sharding-network:
+    driver: bridge
