@@ -42,6 +42,6 @@ echo -e "\nДобавление узлов в кластер..."
 # Регистрация storage узлов по именам контейнеров
 echo "Регистрация storage узлов в master-node..."
 for i in $(seq 1 $STORAGE_COUNT); do
-    register_storage_node "sharding-storage-sharding-storage-$i:8080"
+    register_storage_node "master-node-sharding-storage-$i:8080"
 done
 echo -e "\nМожете подключиться к клиенту"

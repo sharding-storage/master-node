@@ -3,7 +3,6 @@ version: '3.8'
 services:
   sharding-storage:
     image: l1zail/sharding-storage:latest
-    build: .
     ports:
       - "8080"
     networks:
