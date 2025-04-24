@@ -3,10 +3,6 @@ version: '3.8'
 services:
   sharding-storage:
     image: l1zail/sharding-storage:latest
-    ports:
-      - "8080"
-    networks:
-      - sharding-network
     restart: unless-stopped
     depends_on:
       master-node:
@@ -18,8 +14,6 @@ services:
     ports:
       - "9090:8080"
     restart: unless-stopped
-    networks:
-      - sharding-network
     healthcheck:
       test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/8080 || exit 1'"]
       interval: 5s
@@ -31,16 +25,10 @@ services:
     container_name: sharding-client
     ports:
       - "7070:8080"
-    command: ["master-node:8080"]
+    command: ["host.docker.internal:9090"]
     restart: on-failure
     stdin_open: true
     tty: true
     depends_on:
       master-node:
         condition: service_healthy
-    networks:
-      - sharding-network
-
-networks:
-  sharding-network:
-    driver: bridge
