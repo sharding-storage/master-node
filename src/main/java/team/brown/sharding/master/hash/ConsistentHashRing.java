@@ -1,12 +1,22 @@
 package team.brown.sharding.master.hash;
 
+import lombok.extern.slf4j.Slf4j;
 import team.brown.sharding.master.grpc.HashRange;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Кольцо консистентного хеширования с поддержкой виртуальных узлов.
  */
+@Slf4j
 public class ConsistentHashRing<T> implements Cloneable{
 
     private SortedMap<Integer, T> circle = new TreeMap<>();
@@ -34,6 +44,7 @@ public class ConsistentHashRing<T> implements Cloneable{
      * @param node узел
      */
     public SortedMap<Integer, T> addNode(T node) {
+        log.info("Add node to ring: node={}", node);
         for (int i = 0; i < virtualNodes; i++) {
             int hash = hashFunction.hash(node.toString() + "-" + i);
             circle.put(hash, node);
@@ -47,6 +58,7 @@ public class ConsistentHashRing<T> implements Cloneable{
      * @param node узел
      */
     public SortedMap<Integer, T> removeNode(T node) {
+        log.info("Remove node from ring: node={}", node);
         for (int i = 0; i < virtualNodes; i++) {
             int hash = hashFunction.hash(node.toString() + "-" + i);
             circle.remove(hash);
@@ -61,6 +73,7 @@ public class ConsistentHashRing<T> implements Cloneable{
      * @return узел или null, если кольцо пустое
      */
     public T getNode(Object key) {
+        log.info("Get node for key: key={}", key);
         if (circle.isEmpty()) {
             return null;
         }
@@ -73,6 +86,7 @@ public class ConsistentHashRing<T> implements Cloneable{
     }
 
     public T getNodeByHash(int hash) {
+        log.info("Get node by hash: hash={}", hash);
         if (circle.isEmpty()) {
             return null;
         }
@@ -89,10 +103,12 @@ public class ConsistentHashRing<T> implements Cloneable{
      * Очищает кольцо.
      */
     public void clear() {
+        log.info("Clear ring");
         circle.clear();
     }
 
     public int getVirtualNodes() {
+        log.info("Get virtual nodes count");
         return virtualNodes;
     }
 
@@ -136,10 +152,12 @@ public class ConsistentHashRing<T> implements Cloneable{
     }
 
     public Set<T> getNodes() {
+        log.info("Get all nodes from ring");
         return new HashSet<>(circle.values());
     }
 
     public List<HashRange> getHashRanges(T node) {
+        log.info("Get hash ranges for node: node={}", node);
         List<HashRange> ranges = new ArrayList<>();
         if (circle.isEmpty()) {
             return ranges;
@@ -188,6 +206,7 @@ public class ConsistentHashRing<T> implements Cloneable{
      * @return узел, ответственный за этот хеш
      */
     public T getNodeForHash(int hash) {
+        log.info("Get node for hash: hash={}", hash);
         if (circle.isEmpty()) {
             return null;
         }
@@ -201,6 +220,7 @@ public class ConsistentHashRing<T> implements Cloneable{
     }
 
     public SortedMap<Integer, T> getCircle(){
+        log.info("Get circle state");
         return this.circle;
     }
 }
