@@ -13,6 +13,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Пример мастер-узла, управляющего схемой шардирования.
@@ -27,6 +29,8 @@ public class MasterNode {
 
     // Множество зарегистрированных серверов.
     private final Set<ServerNode> nodes;
+    //Версия схемы хэширования
+    private final AtomicInteger version;
     // Кольцо консистентного хеширования (не final, чтобы его можно было пересоздавать при решардинге).
     private ConsistentHashRing<ServerNode> ring;
     private final RestClient restClient;
@@ -45,6 +49,7 @@ public class MasterNode {
                 DEFAULT_NODE_PER_SERVER
         );
         this.restClient = restClient;
+        this.version = new AtomicInteger(1);
     }
 
     /**
@@ -68,6 +73,7 @@ public class MasterNode {
             ConsistentHashRing<ServerNode> oldRing = this.ring.clone();
             ring.addNode(node);
             Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+            incrementVersion();
             executeRestRangeMigration(migrationPlan, oldRing);
             return true;
         } finally {
@@ -92,6 +98,7 @@ public class MasterNode {
             ConsistentHashRing<ServerNode> oldRing = this.ring.clone();
             ring.removeNode(node);
             Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+            incrementVersion();
             executeRestRangeMigration(migrationPlan, oldRing);
             return true;
         } finally {
@@ -145,6 +152,12 @@ public class MasterNode {
         }
     }
 
+    public int getVersion() {
+        var version = this.version.get();
+        log.info("Get version: {}", version);
+        return version;
+    }
+
     /**
      * Обновляет число виртуальных узлов (решардинг).
      *
@@ -161,6 +174,7 @@ public class MasterNode {
                     newVirtualNodes
             );
             Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+            incrementVersion();
             executeRestRangeMigration(migrationPlan, oldRing);
         } finally {
             lock.writeLock().unlock();
@@ -204,9 +218,14 @@ public class MasterNode {
                         sourceNode,
                         targetNode,
                         range.getStart(),
-                        range.getEnd()
+                        range.getEnd(),
+                        getVersion()
                 );
             }
         }
+    }
+
+    private void incrementVersion() {
+        log.info("Увеличении версии {}", this.version.incrementAndGet());
     }
 }

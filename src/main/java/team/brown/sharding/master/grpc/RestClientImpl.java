@@ -22,7 +22,8 @@ public class RestClientImpl implements RestClient {
     public void migrateRangeDirectly(ServerNode sourceNode,
                                      ServerNode targetNode,
                                      int startHash,
-                                     int endHash) {
+                                     int endHash,
+                                     int version) {
         log.info("Migrate range: sourceNode={}, targetNode={}, startHash={}, endHash={}",
             sourceNode, targetNode, startHash, endHash);
         String url = buildMigrationUrl(sourceNode);
@@ -33,7 +34,8 @@ public class RestClientImpl implements RestClient {
         MigrationRequest request = new MigrationRequest(
                 targetNode.getAddress(),
                 (long) startHash,
-                (long) endHash
+                (long) endHash,
+                version
         );
 
         HttpEntity<MigrationRequest> entity = new HttpEntity<>(request, headers);
