@@ -1,5 +1,6 @@
 package team.brown.sharding.master.node;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import team.brown.sharding.master.grpc.HashRange;
 import team.brown.sharding.master.grpc.RestClient;
@@ -10,6 +11,7 @@ import java.util.*;
 /**
  * Пример мастер-узла, управляющего схемой шардирования.
  */
+@Slf4j
 @Component
 public class MasterNode {
     /**
@@ -71,7 +73,10 @@ public class MasterNode {
             return false;
         }
         nodes.remove(node);
+        ConsistentHashRing<ServerNode> oldRing = this.ring.clone();
         ring.removeNode(node);
+        Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+        executeRestRangeMigration(migrationPlan, oldRing);
         return true;
     }
 
@@ -124,9 +129,13 @@ public class MasterNode {
             ConsistentHashRing<ServerNode> newRing) {
         Map<ServerNode, List<HashRange>> migrationPlan = new HashMap<>();
         for (ServerNode node : newRing.getNodes()) {
-            List<HashRange> newRanges = newRing.getHashRanges(node);
+            List<HashRange> newRanges = newRing.getNodes().size() == 1
+                    ? List.of(new HashRange(Integer.MIN_VALUE, Integer.MAX_VALUE))
+                    : newRing.getHashRanges(node);
+            log.info("for node {} calculating new ranges {}", node.getAddress(), newRanges);
             for (HashRange range : newRanges) {
                 ServerNode oldOwner = oldRing.getNodeByHash(range.getStart());
+                log.info("for newRange {} found old owner {}", range, oldOwner);
                 if (oldOwner == null || !oldOwner.equals(node)) {
                      migrationPlan
                             .computeIfAbsent(node, k -> new ArrayList<>())
@@ -134,6 +143,7 @@ public class MasterNode {
                 }
             }
         }
+        log.info("Calculated new migrationPlan: {}", migrationPlan);
         return migrationPlan;
     }
 
@@ -146,6 +156,7 @@ public class MasterNode {
             List<HashRange> rangesToMigrate = entry.getValue();
             for (HashRange range : rangesToMigrate) {
                 ServerNode sourceNode = oldRing.getNodeForHash(range.getStart());
+                log.info("Call migration from {} to {}", sourceNode, targetNode);
                 restClient.migrateRangeDirectly(
                         sourceNode,
                         targetNode,
