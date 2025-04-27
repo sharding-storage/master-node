@@ -1,15 +1,24 @@
 package team.brown.sharding.master.node;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import team.brown.sharding.master.grpc.HashRange;
 import team.brown.sharding.master.grpc.RestClient;
 import team.brown.sharding.master.hash.ConsistentHashRing;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Пример мастер-узла, управляющего схемой шардирования.
  */
+@Slf4j
 @Component
 public class MasterNode {
     /**
@@ -22,6 +31,7 @@ public class MasterNode {
     // Кольцо консистентного хеширования (не final, чтобы его можно было пересоздавать при решардинге).
     private ConsistentHashRing<ServerNode> ring;
     private final RestClient restClient;
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
      * Инициализация MasterNode с изначальным набором серверов и числом виртуальных узлов.
@@ -44,20 +54,26 @@ public class MasterNode {
      * @param node сервер (ip:port)
      * @return true, если сервер добавлен впервые; false иначе
      */
-    public synchronized boolean addServer(ServerNode node) {
-        if (nodes.contains(node)) {
-            return false;
-        }
-        nodes.add(node);
-        if (nodes.size() == 1) {
+    public boolean addServer(ServerNode node) {
+        log.info("Add server: node={}", node);
+        lock.writeLock().lock();
+        try {
+            if (nodes.contains(node)) {
+                return false;
+            }
+            nodes.add(node);
+            if (nodes.size() == 1) {
+                ring.addNode(node);
+                return true;
+            }
+            ConsistentHashRing<ServerNode> oldRing = this.ring.clone();
             ring.addNode(node);
+            Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+            executeRestRangeMigration(migrationPlan, oldRing);
             return true;
+        } finally {
+            lock.writeLock().unlock();
         }
-        ConsistentHashRing<ServerNode> oldRing = this.ring.clone();
-        ring.addNode(node);
-        Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
-        executeRestRangeMigration(migrationPlan, oldRing);
-        return true;
     }
 
     /**
@@ -66,13 +82,19 @@ public class MasterNode {
      * @param node сервер
      * @return true, если сервер удалён; false если его не было
      */
-    public synchronized boolean removeServer(ServerNode node) {
-        if (!nodes.contains(node)) {
-            return false;
+    public boolean removeServer(ServerNode node) {
+        log.info("Remove server: node={}", node);
+        lock.writeLock().lock();
+        try {
+            if (!nodes.contains(node)) {
+                return false;
+            }
+            nodes.remove(node);
+            ring.removeNode(node);
+            return true;
+        } finally {
+            lock.writeLock().unlock();
         }
-        nodes.remove(node);
-        ring.removeNode(node);
-        return true;
     }
 
     /**
@@ -81,8 +103,14 @@ public class MasterNode {
      * @param key ключ
      * @return сервер
      */
-    public synchronized ServerNode getServerForKey(String key) {
-        return ring.getNode(key);
+    public ServerNode getServerForKey(String key) {
+        log.info("Get server for key: key={}", key);
+        lock.readLock().lock();
+        try {
+            return ring.getNode(key);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -90,8 +118,14 @@ public class MasterNode {
      *
      * @return множество серверов
      */
-    public synchronized Set<ServerNode> getNodes() {
-        return new HashSet<>(nodes);
+    public Set<ServerNode> getNodes() {
+        log.info("Get all nodes");
+        lock.readLock().lock();
+        try {
+            return new HashSet<>(nodes);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -99,8 +133,14 @@ public class MasterNode {
      *
      * @return множество серверов
      */
-    public synchronized int getVirtualNodes() {
-        return ring.getVirtualNodes();
+    public int getVirtualNodes() {
+        log.info("Get virtual nodes count");
+        lock.readLock().lock();
+        try {
+            return ring.getVirtualNodes();
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -108,15 +148,21 @@ public class MasterNode {
      *
      * @param newVirtualNodes новое количество виртуальных узлов
      */
-    public synchronized void updateShardCount(int newVirtualNodes) {
-        ConsistentHashRing<ServerNode> oldRing = this.ring;
-        this.ring = new ConsistentHashRing<>(
-                new ConsistentHashRing.MD5HashFunction(),
-                nodes,
-                newVirtualNodes
-        );
-        Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
-        executeRestRangeMigration(migrationPlan, oldRing);
+    public void updateShardCount(int newVirtualNodes) {
+        log.info("Update shard count: newVirtualNodes={}", newVirtualNodes);
+        lock.writeLock().lock();
+        try {
+            ConsistentHashRing<ServerNode> oldRing = this.ring;
+            this.ring = new ConsistentHashRing<>(
+                    new ConsistentHashRing.MD5HashFunction(),
+                    nodes,
+                    newVirtualNodes
+            );
+            Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+            executeRestRangeMigration(migrationPlan, oldRing);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     Map<ServerNode, List<HashRange>> calculateMigrationRanges(

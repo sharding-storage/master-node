@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 /**
  * Контроллер для управления мастер-узлом и схемой шардирования.
  */
+@Slf4j
 @RestController
 @Tag(name = "main", description = "API мастер-узла")
 @RequiredArgsConstructor
@@ -40,6 +42,7 @@ public class MasterController {
     @Operation(summary = "Обновить схему", description = "Получить схему узлов")
     @GetMapping("/scheme")
     public SchemaResponse refreshSchema() {
+        log.info("Refresh schema");
         List<String> nodes = masterNode.getNodes().stream()
                 .map(ServerNode::getAddress)
                 .collect(Collectors.toList());
@@ -55,6 +58,7 @@ public class MasterController {
     @Operation(summary = "Добавить узел", description = "Добавить новый узел в шардирующий пул")
     @PostMapping("/scheme")
     public CommonResponse addNode(@RequestBody @Valid NodeRequest request) {
+        log.info("Add node: request={}", request);
         ServerNode node = new ServerNode(request.address());
         boolean added = masterNode.addServer(node);
         return new CommonResponse(added ? "done" : "node already exists");
@@ -69,6 +73,7 @@ public class MasterController {
     @Operation(summary = "Удалить узел", description = "Удалить узел из шардирующего пула")
     @DeleteMapping("/scheme/{server}")
     public CommonResponse removeNode(@PathVariable("server") String server) {
+        log.info("Remove node: server={}", server);
         ServerNode node = new ServerNode(server);
         boolean removed = masterNode.removeServer(node);
         return new CommonResponse(removed ? "done" : "node not found");
@@ -82,6 +87,7 @@ public class MasterController {
     @Operation(summary = "Обновить количество шардов", description = "Изменить число шардов в кластере")
     @PutMapping("/shards")
     public CommonResponse updateShards(@RequestBody ChangeShardRequest request) {
+        log.info("Update shards: request={}", request);
         masterNode.updateShardCount(request.shardCount());
         return new CommonResponse("done");
     }
