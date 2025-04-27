@@ -43,7 +43,7 @@ public class MasterController {
         List<String> nodes = masterNode.getNodes().stream()
                 .map(ServerNode::getAddress)
                 .collect(Collectors.toList());
-        return new SchemaResponse(nodes);
+        return new SchemaResponse(nodes, masterNode.getVirtualNodes());
     }
 
     /**

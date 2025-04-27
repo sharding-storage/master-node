@@ -9,6 +9,7 @@ import java.util.List;
  */
 @Schema(description = "Схема узлов в порядке хеширования")
 public record SchemaResponse(
-        @Schema(description = "Список адресов узлов", example = "[\"NODE1 ADDRESS\", \"NODE2 ADDRESS\"]") List<String> nodes
+        @Schema(description = "Список адресов узлов", example = "[\"NODE1 ADDRESS\", \"NODE2 ADDRESS\"]") List<String> nodes,
+        Integer virtualNodes
 ) {
 }
