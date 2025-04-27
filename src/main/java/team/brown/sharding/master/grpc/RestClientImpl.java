@@ -1,5 +1,7 @@
 package team.brown.sharding.master.grpc;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -9,20 +11,20 @@ import org.springframework.web.client.RestTemplate;
 import team.brown.sharding.master.model.MigrationRequest;
 import team.brown.sharding.master.node.ServerNode;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class RestClientImpl implements RestClient {
     private final RestTemplate restTemplate;
     private final String migrationEndpoint = "/storage/direct";
-
-    public RestClientImpl(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
-    }
 
     @Override
     public void migrateRangeDirectly(ServerNode sourceNode,
                                      ServerNode targetNode,
                                      int startHash,
                                      int endHash) {
+        log.info("Migrate range: sourceNode={}, targetNode={}, startHash={}, endHash={}",
+            sourceNode, targetNode, startHash, endHash);
         String url = buildMigrationUrl(sourceNode);
 
         HttpHeaders headers = new HttpHeaders();
