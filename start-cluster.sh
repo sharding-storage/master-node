@@ -37,14 +37,19 @@ services:
 EOL
 
 for ((i=0; i<STORAGE_COUNT; i++)); do
-    port=$((STORAGE_PORT_START + i))
+    rest_port=$((STORAGE_PORT_START + i))
+    grpc_port=$((rest_port - 1000))
     cat >> docker-compose.override.yml <<EOL
   sharding-storage-$i:
     image: l1zail/sharding-storage:latest
     ports:
-      - "$port:8080"
+      - "$rest_port:8080"  # REST порт
+      - "$grpc_port:7080"  # gRPC порт (на 1000 меньше)
     networks:
       - default
+    environment:
+      - SERVER_PORT=8080
+      - GRPC_SERVER_PORT=7080
 
 EOL
 done

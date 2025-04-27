@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  sharding-storage-0:
+    image: l1zail/sharding-storage:latest
+    ports:
+      - "8086:8081"  # REST порт
+      - "7086:7081"  # gRPC порт (на 1000 меньше)
+    networks:
+      - default
+    environment:
+      - SERVER_PORT=8081
+      - GRPC_SERVER_PORT=7081
+
