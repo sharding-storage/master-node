@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -28,6 +29,8 @@ public class MasterNode {
 
     // Множество зарегистрированных серверов.
     private final Set<ServerNode> nodes;
+    //Версия схемы хэширования
+    private final AtomicInteger version;
     // Кольцо консистентного хеширования (не final, чтобы его можно было пересоздавать при решардинге).
     private ConsistentHashRing<ServerNode> ring;
     private final RestClient restClient;
@@ -46,6 +49,7 @@ public class MasterNode {
                 DEFAULT_NODE_PER_SERVER
         );
         this.restClient = restClient;
+        this.version = new AtomicInteger(1);
     }
 
     /**
@@ -69,6 +73,7 @@ public class MasterNode {
             ConsistentHashRing<ServerNode> oldRing = this.ring.clone();
             ring.addNode(node);
             Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+            incrementVersion();
             executeRestRangeMigration(migrationPlan, oldRing);
             return true;
         } finally {
@@ -82,7 +87,7 @@ public class MasterNode {
      * @param node сервер
      * @return true, если сервер удалён; false если его не было
      */
-    public boolean removeServer(ServerNode node) {
+    public synchronized boolean removeServer(ServerNode node) {
         log.info("Remove server: node={}", node);
         lock.writeLock().lock();
         try {
@@ -90,7 +95,11 @@ public class MasterNode {
                 return false;
             }
             nodes.remove(node);
+            ConsistentHashRing<ServerNode> oldRing = this.ring.clone();
             ring.removeNode(node);
+            Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+            incrementVersion();
+            executeRestRangeMigration(migrationPlan, oldRing);
             return true;
         } finally {
             lock.writeLock().unlock();
@@ -143,6 +152,12 @@ public class MasterNode {
         }
     }
 
+    public int getVersion() {
+        var version = this.version.get();
+        log.info("Get version: {}", version);
+        return version;
+    }
+
     /**
      * Обновляет число виртуальных узлов (решардинг).
      *
@@ -159,6 +174,7 @@ public class MasterNode {
                     newVirtualNodes
             );
             Map<ServerNode, List<HashRange>> migrationPlan = calculateMigrationRanges(oldRing, ring);
+            incrementVersion();
             executeRestRangeMigration(migrationPlan, oldRing);
         } finally {
             lock.writeLock().unlock();
@@ -170,9 +186,13 @@ public class MasterNode {
             ConsistentHashRing<ServerNode> newRing) {
         Map<ServerNode, List<HashRange>> migrationPlan = new HashMap<>();
         for (ServerNode node : newRing.getNodes()) {
-            List<HashRange> newRanges = newRing.getHashRanges(node);
+            List<HashRange> newRanges = newRing.getNodes().size() == 1
+                    ? List.of(new HashRange(Integer.MIN_VALUE, Integer.MAX_VALUE))
+                    : newRing.getHashRanges(node);
+            log.info("for node {} calculating new ranges {}", node.getAddress(), newRanges);
             for (HashRange range : newRanges) {
                 ServerNode oldOwner = oldRing.getNodeByHash(range.getStart());
+                log.info("for newRange {} found old owner {}", range, oldOwner);
                 if (oldOwner == null || !oldOwner.equals(node)) {
                      migrationPlan
                             .computeIfAbsent(node, k -> new ArrayList<>())
@@ -180,6 +200,7 @@ public class MasterNode {
                 }
             }
         }
+        log.info("Calculated new migrationPlan: {}", migrationPlan);
         return migrationPlan;
     }
 
@@ -192,13 +213,19 @@ public class MasterNode {
             List<HashRange> rangesToMigrate = entry.getValue();
             for (HashRange range : rangesToMigrate) {
                 ServerNode sourceNode = oldRing.getNodeForHash(range.getStart());
+                log.info("Call migration from {} to {}", sourceNode, targetNode);
                 restClient.migrateRangeDirectly(
                         sourceNode,
                         targetNode,
                         range.getStart(),
-                        range.getEnd()
+                        range.getEnd(),
+                        getVersion()
                 );
             }
         }
+    }
+
+    private void incrementVersion() {
+        log.info("Увеличении версии {}", this.version.incrementAndGet());
     }
 }
