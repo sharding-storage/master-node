@@ -69,11 +69,11 @@ done
 echo -e "\nОжидание запуска контейнеров..."
 sleep 10
 
-# Регистрация узлов
-echo -e "\nРегистрация storage узлов в master-node..."
-for ((i=0; i<STORAGE_COUNT; i++)); do
-    port=$((STORAGE_PORT_START + i))
-    register_storage_node "host.docker.internal:$port"
-done
+## Регистрация узлов
+#echo -e "\nРегистрация storage узлов в master-node..."
+#for ((i=0; i<STORAGE_COUNT; i++)); do
+#    port=$((STORAGE_PORT_START + i))
+#    register_storage_node "host.docker.internal:$port"
+#done
 
 echo -e "\n✅ Готово! Можете подключиться к клиенту."
