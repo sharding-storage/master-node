@@ -200,6 +200,17 @@ public class MasterNode {
                 }
             }
         }
+        for (ServerNode oldNode : oldRing.getNodes()) {
+            List<HashRange> oldRanges = oldRing.getHashRanges(oldNode);
+            for (HashRange oldRange : oldRanges) {
+                ServerNode newOwner = newRing.getNodeByHash(oldRange.getStart());
+                if (newOwner == null || !newOwner.equals(oldNode)) {
+                    migrationPlan
+                            .computeIfAbsent(newOwner, k -> new ArrayList<>())
+                            .add(oldRange);
+                }
+            }
+        }
         log.info("Calculated new migrationPlan: {}", migrationPlan);
         return migrationPlan;
     }
