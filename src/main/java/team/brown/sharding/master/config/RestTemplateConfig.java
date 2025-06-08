@@ -1,4 +1,4 @@
-package team.brown.sharding.master;
+package team.brown.sharding.master.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
