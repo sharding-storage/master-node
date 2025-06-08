@@ -43,9 +43,7 @@ public class MasterController {
     @GetMapping("/scheme")
     public SchemaResponse refreshSchema() {
         log.info("Refresh schema");
-        List<String> nodes = masterNode.getNodes().stream()
-                .map(ServerNode::getAddress)
-                .collect(Collectors.toList());
+        var nodes = masterNode.getNodes();
         return new SchemaResponse(nodes, masterNode.getVirtualNodes(), masterNode.getVersion());
     }
 

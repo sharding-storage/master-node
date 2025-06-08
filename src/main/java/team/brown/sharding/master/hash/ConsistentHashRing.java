@@ -2,6 +2,7 @@ package team.brown.sharding.master.hash;
 
 import lombok.extern.slf4j.Slf4j;
 import team.brown.sharding.master.grpc.HashRange;
+import team.brown.sharding.master.node.ServerNode;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -17,7 +18,7 @@ import java.util.TreeMap;
  * Кольцо консистентного хеширования с поддержкой виртуальных узлов.
  */
 @Slf4j
-public class ConsistentHashRing<T> implements Cloneable{
+public class ConsistentHashRing<T extends ServerNode> implements Cloneable{
 
     private SortedMap<Integer, T> circle = new TreeMap<>();
     private final HashFunction hashFunction;
@@ -46,7 +47,12 @@ public class ConsistentHashRing<T> implements Cloneable{
     public SortedMap<Integer, T> addNode(T node) {
         log.info("Add node to ring: node={}", node);
         for (int i = 0; i < virtualNodes; i++) {
-            int hash = hashFunction.hash(node.toString() + "-" + i);
+            int j = 0;
+            int hash = hashFunction.hash(node.baseToHash(i));
+            while (null != circle.get(hash)) {
+                node.addToSalts(i, j++);
+                hash = hashFunction.hash(node.baseToHash(i));
+            }
             circle.put(hash, node);
         }
         return circle;
@@ -60,29 +66,10 @@ public class ConsistentHashRing<T> implements Cloneable{
     public SortedMap<Integer, T> removeNode(T node) {
         log.info("Remove node from ring: node={}", node);
         for (int i = 0; i < virtualNodes; i++) {
-            int hash = hashFunction.hash(node.toString() + "-" + i);
+            int hash = hashFunction.hash(node.baseToHash(i));
             circle.remove(hash);
         }
         return circle;
-    }
-
-    /**
-     * Возвращает узел, ответственный за заданный ключ.
-     *
-     * @param key ключ
-     * @return узел или null, если кольцо пустое
-     */
-    public T getNode(Object key) {
-        log.info("Get node for key: key={}", key);
-        if (circle.isEmpty()) {
-            return null;
-        }
-        int hash = hashFunction.hash(key.toString());
-        if (!circle.containsKey(hash)) {
-            SortedMap<Integer, T> tailMap = circle.tailMap(hash);
-            hash = tailMap.isEmpty() ? circle.firstKey() : tailMap.firstKey();
-        }
-        return circle.get(hash);
     }
 
     public T getNodeByHash(int hash) {
