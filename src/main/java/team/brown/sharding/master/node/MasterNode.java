@@ -107,22 +107,6 @@ public class MasterNode {
     }
 
     /**
-     * Возвращает сервер, ответственный за данный ключ.
-     *
-     * @param key ключ
-     * @return сервер
-     */
-    public ServerNode getServerForKey(String key) {
-        log.info("Get server for key: key={}", key);
-        lock.readLock().lock();
-        try {
-            return ring.getNode(key);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    /**
      * Возвращает текущее множество серверов.
      *
      * @return множество серверов
