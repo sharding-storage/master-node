@@ -1,4 +1,4 @@
-FROM openjdk:21-jdk-slim as builder
+FROM eclipse-temurin:21 as builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY src /app/src
 RUN ./gradlew bootJar --no-daemon && \
     rm -rf /root/.gradle
 
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:21
 
 WORKDIR /app
 
